@@ -13,7 +13,7 @@
 import os
 import json
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 # Попробуем импортировать scikit-learn (если не установлен, дадим понятную ошибку)
 try:
@@ -95,15 +95,26 @@ class SmartMatcher:
         if not self.tenders:
             self.load_tenders()
 
+        # Адаптируем параметры под количество документов
+        n_docs = len(self.tenders)
+        if n_docs < 2:
+            print("Внимание: слишком мало тендеров (меньше 2). Используем упрощённые параметры TF-IDF.")
+            self.vectorizer = TfidfVectorizer(
+                analyzer='word',
+                ngram_range=(1, 2),
+                lowercase=True,
+                max_df=1.0,
+                min_df=1
+            )
+        else:
+            self.vectorizer = TfidfVectorizer(
+                analyzer='word',
+                ngram_range=(1, 2),
+                lowercase=True,
+                max_df=0.8,
+                min_df=1  # меняем с 2 на 1, чтобы избежать ошибки при малом количестве документов
+            )
         corpus = [t["text"] for t in self.tenders]
-        self.vectorizer = TfidfVectorizer(
-            analyzer='word',
-            ngram_range=(1, 2),       # учитываем биграммы для лучшего понимания фраз
-            stop_words='english',      # базовые стоп-слова (можно расширить русскими)
-            lowercase=True,
-            max_df=0.8,               # игнорируем слишком частые слова
-            min_df=2                  # игнорируем слова, встречающиеся реже 2 раз
-        )
         self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
         print("TF-IDF матрица построена.")
 
@@ -122,7 +133,7 @@ class SmartMatcher:
         if not self.tenders:
             self.load_tenders()
 
-        if not self.tfidf_matrix and SKLEARN_AVAILABLE:
+        if self.tfidf_matrix is None and SKLEARN_AVAILABLE:
             self.build_index()
 
         query_clean = self.preprocess_query(query)
